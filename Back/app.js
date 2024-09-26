@@ -21,6 +21,8 @@ const pool = mysql.createPool({
   port: 8889
 });
 
+app.get("/", (req, res) => res.send("Express on Vercel"));
+
 // Route pour récupérer les données
 app.get('/bookings', (req, res) => {
   pool.query("SELECT * FROM bookings", (err, rows) => {
@@ -44,6 +46,7 @@ app.get(`/bookings/:date`, (req, res) => {
   })
 })
 
-app.post('/')
+//app.post('/')
 
 app.listen(port, () => console.log(`Serveur en écoute sur le port ${port}`));
+module.exports = app;
