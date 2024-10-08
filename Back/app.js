@@ -21,6 +21,8 @@ const pool = mysql.createPool({
   port: 8889
 });
 
+app.get("/", (req, res) => res.send("Express running"));
+
 // Route pour récupérer les données
 app.get('/bookings', (req, res) => {
   pool.query("SELECT * FROM bookings", (err, rows) => {
@@ -44,6 +46,50 @@ app.get(`/bookings/:date`, (req, res) => {
   })
 })
 
-app.post('/')
+app.get('/opening/dayopen', (req, res) => {
+  pool.query("SELECT * FROM opening_hours", (err, rows) => {
+    if(err) {
+      console.error("Erreur lors de la récupération des données:", err);
+      return res.status(500).send("Erreur serveur");
+    }
+    res.json(rows);
+  })
+})
+
+app.get('/opening/dayopen/:day', (req, res) => {
+  const day = req.params.day;
+  pool.query("SELECT * FROM opening_hours WHERE day_of_week = ?", [day], (err, rows) => {
+    if(err) {
+      console.error("Erreur lors de la récupération des données:", err);
+      return res.status(500).send("Erreur serveur");
+    }
+    res.json(rows);
+  })
+})
+
+app.post('/bookings', (req, res) => {
+  const nameForm = req.body.name;
+  const hourForm = req.body.hour;
+  const dateForm = req.body.date;
+  const emailForm = req.body.email;
+
+  const sqlInsert = `INSERT INTO bookings (date, email, name, hour) VALUES (?, ?, ?, ?)`;
+
+  pool.query(sqlInsert, [dateForm, emailForm, nameForm, hourForm], (err, rows) => {
+    if(err) {
+      console.error("Erreur lors de l'envoi des données:", err);
+      return res.status(500).send("Erreur serveur");
+    }
+    res.json(rows);
+  })
+  /*return res.json({
+    name: nameForm,
+    hour: hourForm,
+    date: dateForm,
+    email: emailForm
+  });*/
+})
 
 app.listen(port, () => console.log(`Serveur en écoute sur le port ${port}`));
+
+module.exports = app;

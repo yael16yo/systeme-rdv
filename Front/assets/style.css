@@ -104,10 +104,11 @@ header .calendar-current-date {
 
 .calendar-dates li.inactive {
   color: #aaa;
+  pointer-events: none;
 }
 
 .calendar-dates li.active {
-  color: #fff;
+  color: #fff !important;
 }
 
 .calendar-dates li::before {
@@ -123,11 +124,17 @@ header .calendar-current-date {
 }
 
 .calendar-dates li.active::before {
-  background: #6332c5;
+  background: #324dc5;
 }
 
 .calendar-dates li:not(.active):hover::before {
   background: #e4e1e1;
+}
+
+.calendar-dates li.btn_day_not_opened {
+  color: indianred;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* HOURS */
@@ -140,16 +147,24 @@ header .calendar-current-date {
   display: flex !important;
 }
 
+.dateModalHours {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 10px;
+}
+
 .hours-container {
   /*background: #fff;*/
   width: 100%;
   max-width: 500px;
-  padding: 20px;
+  padding: 40px 40px;
   display: none;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 20px 0;
+  position: relative;
   /*border-radius: 10px;
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);*/
 }
@@ -211,6 +226,12 @@ header .calendar-current-date {
 .form_reservation {
   display: flex;
   flex-direction: column;
+}
+
+.backToDays {
+  top: 10px;
+  left: 10px;
+  position: absolute;
 }
 
 .form_reservation {

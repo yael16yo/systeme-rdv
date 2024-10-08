@@ -40,13 +40,33 @@ function formatDate(date) {
 }
 
 // Fonction pour générer le calendrier
-const generateCalendar = () => {
+const generateCalendar = async () => {
   let firstDayOfTheMonth = new Date(year, month, 1).getDay();
   let lastDateOfTheMonth = new Date(year, month + 1, 0).getDate();
   let lastDayOfTheMonth = new Date(year, month, lastDateOfTheMonth).getDay();
   let lastDateOfPreviousMonth = new Date(year, month, 0).getDate();
 
   let calendar = "";
+
+  async function fetchOpenDays() {
+    try {
+      const res = await fetch(backendHours + '/opening/dayopen', {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+  
+      if (!res.ok) {
+        throw new Error('Erreur lors de la récupération des données');
+      }
+  
+      return await res.json();
+    } catch (error) {
+      console.error('Erreur lors de la récupération des jours ouverts:', error);
+      return null; // En cas d'erreur, retourner null ou une valeur par défaut
+    }
+  }
 
   // Jours du mois précédent (inactifs)
   for (let i = firstDayOfTheMonth; i > 0; i--) {
@@ -56,34 +76,55 @@ const generateCalendar = () => {
       lastDateOfPreviousMonth - i + 1
     );
     let formattedPrevMonthDate = formatDate(prevMonthDate); // Utiliser formatDate
-    calendar += `<li class="inactive" data-date="${formattedPrevMonthDate}">${
+    calendar += `<li class="inactive" data-date="${formattedPrevMonthDate}" data-clickable="not-clickable">${
       lastDateOfPreviousMonth - i + 1
     }</li>`;
   }
 
+
   // Jours du mois courant
   for (let i = 1; i <= lastDateOfTheMonth; i++) {
-    let currentDate = new Date(year, month, i);
-    let formattedCurrentDate = formatDate(currentDate); // Utiliser formatDate
+    let currentDateForFormat = new Date(year, month, i);
+    let formattedCurrentDate = formatDate(currentDateForFormat); 
+    let dayOfWeek = currentDateForFormat.getDay();
+    
+    let currentDate = new Date();
+    const currentDay = currentDate.getDate();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+
+    const dataOpenDays = await fetchOpenDays();
+
+    let isDisabled = "";
+    let isToday = "";
+    let isDisabledClass = "";
+    let isClickable = "is-clickable";
+    
+    const isOpen = dataOpenDays.find(day => day.day_of_week === dayOfWeek);
+    // Si le jour est fermé, on désactive l'option
+    if (isOpen && isOpen.is_open === 0) {
+      isDisabled = "disabled";
+      isDisabledClass = "btn_day_not_opened";
+      isClickable = "not-clickable";
+    }
 
     // On regarde si le jour d'aujourd'hui est actif
-    let isToday =
-      i === date.getDate() &&
-      month === new Date().getMonth() &&
-      year === new Date().getFullYear()
-        ? "active"
-        : "";
-    calendar += `<li class="${isToday}" data-date="${formattedCurrentDate}">${i}</li>`;
+    if (year < currentYear || (year === currentYear && month < currentMonth) || 
+      (year === currentYear && month === currentMonth && i < currentDay)) {
+    // Si la date est dans le passé
+    isToday = "inactive";
+    isClickable = "not-clickable";
+  } else if (i === currentDay && month === currentMonth && year === currentYear) {
+    // Si c'est la date actuelle
+    isToday = "active";
+  } else {
+    isToday = "";
   }
+  // Construction de l'élément de calendrier
+  calendar += `<li class="${isToday} ${isDisabledClass}" data-date="${formattedCurrentDate}" data-clickable="${isClickable}" ${isDisabled}>${i}</li>`;
+}
 
-  // Jours du mois suivant (inactifs)
-  for (let i = lastDayOfTheMonth; i < 6; i++) {
-    let nextMonthDate = new Date(year, month + 1, i - lastDayOfTheMonth + 1);
-    let formattedNextMonthDate = formatDate(nextMonthDate); // Utiliser formatDate
-    calendar += `<li class="inactive" data-date="${formattedNextMonthDate}">${
-      i - lastDayOfTheMonth + 1
-    }</li>`;
-  }
+
 
   // Mise à jour du mois et de la date sélectionnée
   currentMonthAndDate.innerText = `${months[month]} ${year}`;
@@ -98,9 +139,14 @@ const attachClickEventToDays = () => {
   let daysCalendar = document.querySelectorAll(".calendar-dates li");
   daysCalendar.forEach((day) => {
     day.addEventListener("click", (event) => {
-      let selectedDate = event.target.getAttribute("data-date");
-      console.log("Date sélectionnée:", selectedDate);
-      generateHoursOfWeek(selectedDate);
+      let selectedDayIsOpen = event.target.getAttribute("data-clickable");
+      if(selectedDayIsOpen === "not-clickable") {
+        console.log("not avalaible");
+      } else {
+        let selectedDate = event.target.getAttribute("data-date");
+        //console.log("Date sélectionnée:", selectedDate);
+        generateHoursOfWeek(selectedDate);
+      }
     });
   });
 };
@@ -109,6 +155,9 @@ const attachClickEventToDays = () => {
 function generateHoursOfWeek(date) {
   containerCalendrierHours.classList.toggle('activate-hours');
   wrapperCalendrierJours.classList.toggle('activate-days');
+
+  containerCalendrierHours.innerHTML = "";
+
   const splitDate = date.split('-');
   const dateFormatSlash = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}`
   containerCalendrierHours.innerHTML += `${dateFormatSlash}`;
@@ -143,6 +192,11 @@ prenexIcons.forEach((icon) => {
 });
 
 function getSpecificHours(date) {
+
+const dateFF = new Date(date);
+const day = dateFF.getDay();
+console.log(day);
+
 fetch(backendHours + "/bookings/" + date, {
     method: "GET",
     headers: {
@@ -154,50 +208,94 @@ fetch(backendHours + "/bookings/" + date, {
     }
     return res.json();
 }).then((datas) => {
-  let startHour = new Date();
-startHour.setHours(9, 0, 0, 0);  // 09:00:00
-
-const hoursWrapper = document.createElement('div');
-hoursWrapper.classList.add('hours-wrapper');
-containerCalendrierHours.appendChild(hoursWrapper);
-
-for (let n = 0; n < 18; n++) {  // 18 itérations pour 9h00 à 17h30
-  let hours = startHour.getHours().toString().padStart(2, '0');
-  let minutes = startHour.getMinutes().toString().padStart(2, '0');
-  let seconds = "00";  // On garde les secondes à 00
-
-  // Format HH:mm:ss
-  let formattedTime = `${hours}:${minutes}:${seconds}`;
-  //console.log(formattedTime);
-  let classHour = "btn_enabled"
-  datas.forEach(data => {
-    if(data.hour === formattedTime) {
-      classHour = "btn_disabled"
+  fetch(backendHours + "/opening/dayopen/" + day, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json"
     }
+  }).then((res) => {
+    if(!res.ok) {
+      throw new Error('Erreur lors de la récupération des données');
+    }
+    return res.json();
+  }).then((ohdatas) => {
+  containerCalendrierHours.innerHTML = "";
+
+  const backToDaysBtn = document.createElement('span');
+  backToDaysBtn.classList.add('backToDays');
+  backToDaysBtn.innerHTML = "<i class='fa fa-arrow-left'></i>"
+  containerCalendrierHours.appendChild(backToDaysBtn);
+
+  const splitDate = date.split('-');
+  const dateToShow = `${splitDate[2]}/${splitDate[1]}/${splitDate[0]}`;
+
+  const titleHoursModalWithDate = document.createElement('p');
+  titleHoursModalWithDate.className = 'dateModalHours';
+  titleHoursModalWithDate.innerText = `${dateToShow}`;
+  containerCalendrierHours.appendChild(titleHoursModalWithDate);
+
+  const hoursWrapper = document.createElement('div');
+  hoursWrapper.classList.add('hours-wrapper');
+  containerCalendrierHours.appendChild(hoursWrapper);
+
+  backToDaysBtn.addEventListener('click', function() {
+    containerCalendrierHours.classList.toggle('activate-hours');
+    wrapperCalendrierJours.classList.toggle('activate-days');
   })
-  let formattedTimeToShow = `${hours}:${minutes}`;
-  //containerCalendrierHours.innerHTML += `<button class="btn_reservation ${classHour}">${formattedTimeToShow}</button>`
-  hoursWrapper.innerHTML += `<button class="btn_reservation ${classHour}" 
-  data-date="${date}" 
-  data-hour="${formattedTime}"
-  data-formatted="${formattedTime}"
-  data-formatted-to-show="${formattedTimeToShow}">
-  ${formattedTimeToShow}
-</button>`
-    // Incrémente l'heure de 30 minutes
-    startHour.setMinutes(startHour.getMinutes() + 30);
-}
-document.querySelectorAll('.btn_reservation').forEach(button => {
-  button.addEventListener('click', function() {
-    const selectedDate = this.getAttribute('data-date');
-    const selectedHour = this.getAttribute('data-hour');
-    const formattedTime = this.getAttribute('data-formatted');
-    const formattedTimeToshow = this.getAttribute('data-formatted-to-show');
-    
-    // Ouvrir la modal et afficher les informations
-    openModal(selectedDate, selectedHour, formattedTime, formattedTimeToshow);
-  });
-});
+
+  let startHour = new Date();
+  const dataHours = ohdatas.find(({day_of_week}) => day_of_week === day)
+  //console.log(dataHours.start_time_morning);
+  
+  if(dataHours.start_time_morning === "00:00:00") {
+    console.log("Start at afternoon");
+  } else {
+    let startTimeMorning = dataHours.start_time_morning.split(":"); // Divise "09:00:00" en ["09", "00", "00"]
+    startHour.setHours(parseInt(startTimeMorning[0])); // Heures
+    startHour.setMinutes(parseInt(startTimeMorning[1])); // Minutes
+    startHour.setSeconds(parseInt(startTimeMorning[2])); // Secondes
+    //let endTimeMorning = dataHours.end_time_morning.split(":");
+    for (let n = 0; n < 18; n++) {  // 18 itérations pour 9h00 à 17h30
+      let hours = startHour.getHours().toString().padStart(2, '0');
+      let minutes = startHour.getMinutes().toString().padStart(2, '0');
+      let seconds = "00";  // On garde les secondes à 00
+  
+      // Format HH:mm:ss
+      let formattedTime = `${hours}:${minutes}:${seconds}`;
+      let formattedTimeToShow = `${hours}:${minutes}`;
+  
+      let classHour = "btn_enabled"
+      let isItDisabled = "";
+      datas.forEach(data => {
+        if(data.hour === formattedTime) {
+          classHour = "btn_disabled";
+          isItDisabled = "disabled";
+        }
+      })
+  
+      hoursWrapper.innerHTML += `<button class="btn_reservation ${classHour}" 
+          data-date="${date}" 
+          data-hour="${formattedTime}"
+          data-formatted="${formattedTime}"
+          data-formatted-to-show="${formattedTimeToShow}" ${isItDisabled}>
+          ${formattedTimeToShow}
+        </button>`
+        // Incrémente l'heure de 30 minutes
+        startHour.setMinutes(startHour.getMinutes() + 30);
+    }
+    document.querySelectorAll('.btn_reservation').forEach(button => {
+      button.addEventListener('click', function() {
+        const selectedDate = this.getAttribute('data-date');
+        const selectedHour = this.getAttribute('data-hour');
+        const formattedTime = this.getAttribute('data-formatted');
+        const formattedTimeToshow = this.getAttribute('data-formatted-to-show');
+        
+        // Ouvrir la modal et afficher les informations
+        openModal(selectedDate, selectedHour, formattedTime, formattedTimeToshow);
+      });
+    });
+  }
+})
 }).catch(err => {
     console.log(err);
 })
@@ -214,7 +312,7 @@ function openModal(date, hour, formattedTime, formattedTimeToShow) {
   // Ajouter les informations dans la modal
   modal.querySelector('.modal-body-reservation').innerHTML = `
     <p>Réservation pour le ${dateFormatSlash} à ${formattedTimeToShow}</p><br>
-    <form action="" method="POST" class="form_reservation">
+    <form method="POST" class="form_reservation">
       <input type="hidden" name="hour" value="${formattedTime}">
       <input type="hidden" name="date" value="${date}">
       <div>
@@ -225,11 +323,41 @@ function openModal(date, hour, formattedTime, formattedTimeToShow) {
         <label for="email">Votre email :</label>
         <input type="email" name="email" id="email">
       </div>
-      <button type="submit" name="sendIntoCalendar">Confirmer la réservation</button>
+      <button type="submit" id="sendIntoCalendar">Confirmer la réservation</button>
     </form>
     <p>Cliquez sur confirmer pour finaliser la réservation.</p>
   `;
+
+  const form = modal.querySelector('.form_reservation');
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch(backendHours + '/bookings', {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error('Erreur lors de la réservation');
+      }
+      return response.json();
+    })
+    .then((result) => {
+      alert('Réservation confirmée');
+      modal.style.display = "none";
+      getSpecificHours(data.date);
+    }).catch((error) => {
+      console.error(error);
+      alert('Une erreur est survenue lors de la réservation.');
+    });
+  })
 }
+
 
 // Fermer la modal lorsque l'utilisateur clique en dehors de celle-ci ou sur un bouton de fermeture
 document.querySelector('.modal-close-reservation').addEventListener('click', function() {
